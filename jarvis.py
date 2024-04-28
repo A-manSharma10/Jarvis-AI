@@ -5,6 +5,12 @@ import wikipedia
 import webbrowser
 import os
 import smtplib
+import pywhatkit
+import pyjokes
+import requests
+import json
+from twilio.rest import Client
+import openai
 
 engine = pyttsx3.init('sapi5')
 voices = engine.getProperty('voices')
@@ -52,9 +58,73 @@ def sendEmail(to, content):
     server = smtplib.SMTP('smtp.gmail.com', 587)
     server.ehlo()
     server.starttls()
-    server.login('youremail@gmail.com', 'your password')
+    server.login('youremail@gmail.com', 'your password')  # Replace with your email and password
     server.sendmail('yourmail@gmail.com', to, content)
     server.close()
+
+
+def make_call(number):
+    # Twilio credentials
+    account_sid = 'YOUR_ACCOUNT_SID'  # Replace with your Twilio account SID
+    auth_token = 'YOUR_AUTH_TOKEN'  # Replace with your Twilio authentication token
+    twilio_number = 'YOUR_TWILIO_PHONE_NUMBER'  # Replace with your Twilio phone number
+
+    client = Client(account_sid, auth_token)
+
+    call = client.calls.create(
+        to=number,
+        from_=twilio_number,
+        url='http://demo.twilio.com/docs/voice.xml'  # URL with TwiML instructions for the call
+    )
+
+    print(call.sid)
+
+
+def tell_joke():
+    joke = pyjokes.get_joke()
+    speak(joke)
+
+
+def get_weather():
+    api_key = "YOUR_API_KEY"  # Replace with your API key from OpenWeatherMap
+    base_url = "http://api.openweathermap.org/data/2.5/weather?"
+    city_name = "YOUR_CITY_NAME"  # Replace with your city name
+    complete_url = base_url + "q=" + city_name + "&appid=" + api_key
+    response = requests.get(complete_url)
+    data = response.json()
+    if data["cod"] != "404":
+        main = data["main"]
+        temperature = main["temp"] - 273.15  # Convert to Celsius
+        weather_desc = data["weather"][0]["description"]
+        speak(f"The temperature in {city_name} is {temperature:.2f} degrees Celsius with {weather_desc}.")
+    else:
+        speak("City not found.")
+
+
+def suggest_movies():
+    api_key = 'YOUR_TMDB_API_KEY'  # Replace with your TMDB API key
+    url = f'https://api.themoviedb.org/3/movie/popular?api_key={api_key}&language=en-US&page=1'
+    response = requests.get(url)
+    if response.status_code == 200:
+        data = response.json()
+        results = data['results'][:5]  # Get top 5 popular movies
+        for movie in results:
+            title = movie['title']
+            speak(f"I suggest you watch {title}.")
+    else:
+        speak("Sorry, I couldn't fetch movie suggestions at the moment.")
+
+
+def get_opinion(topic):
+    openai.api_key = 'YOUR_OPENAI_API_KEY'  # Replace with your OpenAI API key
+    prompt = f"What's your opinion on {topic}?"
+    response = openai.Completion.create(
+        engine="davinci",
+        prompt=prompt,
+        max_tokens=50
+    )
+    opinion = response.choices[0].text.strip()
+    speak(opinion)
 
 
 if __name__ == "__main__":
@@ -62,7 +132,6 @@ if __name__ == "__main__":
     while True:
         query = takecommand().lower()
 
-        # Logic for executing tasks based on query
         if 'wikipedia' in query:
             speak("Searching Wikipedia...")
             query = query.replace("wikipedia", "")
@@ -105,6 +174,24 @@ if __name__ == "__main__":
             except Exception as e:
                 print(e)
                 speak("Sorry bro, I am not able to send this email")
+
+        elif 'make a call' in query:
+            speak("Whom do you want to call?")
+            contact = takecommand()
+            make_call(contact)
+
+        elif 'tell a joke' in query:
+            tell_joke()
+
+        elif 'weather today' in query:
+            get_weather()
+
+        elif 'suggest movies' in query:
+            suggest_movies()
+
+        elif 'opinion on' in query:
+            topic = query.replace("opinion on", "").strip()
+            get_opinion(topic)
 
         elif 'stop jarvis' in query:
             speak("Ok, Nice helping you, Bye")
